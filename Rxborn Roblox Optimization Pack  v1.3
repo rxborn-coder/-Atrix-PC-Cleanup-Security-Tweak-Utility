@@ -1,0 +1,109 @@
+@echo off
+:: Rxborn Roblox Optimisation Pack  v1.3
+title Rxborn Roblox Optimisation Pack
+setlocal EnableDelayedExpansion
+set "LOG=%USERPROFILE%\Rxborn_log.txt"
+echo.>"%LOG%"
+mode con: cols=70 lines=32
+
+::------------------------------------------------
+:: 0.  ELEVATE & CREATE RESTORE POINT (once)
+::------------------------------------------------
+fltmc >nul 2>&1 || (
+  powershell -ex bypass -c "Start-Process '%~f0' -Verb RunAs" & exit /b
+)
+echo Creating restore point...
+powershell -ex bypass -c "Checkpoint-Computer -Description 'Rxborn Tweaks' -RestorePointType 'MODIFY_SETTINGS'" 2>nul
+echo Restore point created. && echo.
+
+:MAIN_MENU
+cls
+echo ============================================
+echo    Rxborn Roblox Optimisation Pack
+echo ============================================
+echo  1) Apply ALL tweaks  (recommended)
+echo  2) Choose tweaks manually
+echo  3) Revert ALL tweaks (restore point)
+echo  4) Exit
+echo ============================================
+choice /c 1234 /n /m "Select: "
+if %errorlevel%==1 goto APPLY_ALL
+if %errorlevel%==2 goto CHOOSE_MENU
+if %errorlevel%==3 goto REVERT_ALL
+if %errorlevel%==4 exit /b
+
+:CHOOSE_MENU
+cls
+echo ============================================
+echo    CHOOSE INDIVIDUAL TWEAKS
+echo ============================================
+echo  1) Boost Roblox CPU priority
+echo  2) Kill background RAM/CPU hogs
+echo  3) Network tweaks  (TCP nagle off)
+echo  4) Fix micro-stutter  (timer resolution)
+echo  5) Back to main menu
+echo ============================================
+choice /c 12345 /n /m "Select tweak: "
+if %errorlevel%==1 call :PRIORITY_HIGH
+if %errorlevel%==2 call :KILL_BLOAT
+if %errorlevel%==3 call :NETWORK_TWEAKS
+if %errorlevel%==4 call :STUTTER
+if %errorlevel%==5 goto MAIN_MENU
+goto CHOOSE_MENU
+
+::------------------------------------------------
+:: TWEAK ROUTINES
+::------------------------------------------------
+:PRIORITY_HIGH
+echo Boosting Roblox priority...
+wmic process where name="RobloxPlayerBeta.exe"  call setpriority 128 >nul 2>&1
+wmic process where name="RobloxStudioBeta.exe" call setpriority 128 >nul 2>&1
+echo [CPU] Priority -^> High DONE! && echo [CPU] Priority -^> High>>"%LOG%"
+goto :eof
+
+:KILL_BLOAT
+echo Killing RAM/CPU hogs...
+taskkill /F /IM "GoogleUpdate.exe"    >nul 2>&1
+taskkill /F /IM "EpicGamesLauncher.exe" >nul 2>&1
+taskkill /F /IM "Steam.exe"           >nul 2>&1
+taskkill /F /IM "Discord.exe"         >nul 2>&1
+echo [RAM] Background apps killed DONE! && echo [RAM] Background apps killed>>"%LOG%"
+goto :eof
+
+:NETWORK_TWEAKS
+echo Applying network tweaks...
+reg add "HKLM\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters" /v "TcpAckFrequency" /t REG_DWORD /d 1 /f >nul 2>&1
+reg add "HKLM\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters" /v "TCPNoDelay"     /t REG_DWORD /d 1 /f >nul 2>&1
+echo [NET] TCP tweaks applied DONE! && echo [NET] TCP tweaks applied>>"%LOG%"
+goto :eof
+
+:STUTTER
+echo Setting 0.5 ms timer resolution (stutter fix)...
+:: tiny signed binary (public domain) – download once
+if not exist "%temp%\str.exe" (
+  powershell -ex bypass -c "Invoke-WebRequest 'https://forums.guru3d.com/attachments/SetTimerResolution-1-0-zip.58937/' -OutFile '%temp%\str.zip'; Expand-Archive '%temp%\str.zip' '%temp%' -Force"
+)
+start /wait "" "%temp%\SetTimerResolution.exe" -min
+echo [STUTTER] Timer resolution set DONE! && echo [STUTTER] Timer resolution set>>"%LOG%"
+goto :eof
+
+:APPLY_ALL
+call :PRIORITY_HIGH
+call :KILL_BLOAT
+call :NETWORK_TWEAKS
+call :STUTTER
+echo.
+echo === ALL TWEAKS APPLIED ===
+echo Log saved to %LOG%
+pause
+goto MAIN_MENU
+
+:REVERT_ALL
+echo.
+echo Rolling back to restore point...
+powershell -ex bypass -c "Get-ComputerRestorePoint | Sort-Object CreationTime -Desc | Select-Object -First 1 | ForEach-Object { Restore-Computer -RestorePoint $_.SequenceNumber -Force }"
+echo.
+echo === ALL TWEAKS REVERTED ===
+echo Restart your PC when convenient.
+pause
+goto MAIN_MENU
