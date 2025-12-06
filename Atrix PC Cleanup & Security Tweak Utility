@@ -1,190 +1,265 @@
 @echo off
-:: Atrix PC Cleanup & Security Tweak Utility
-::  – new clean build
-::  – run as administrator
-title Atrix PC Cleanup & Security Tweak Utility
+::  ╔═══════════════════════════════════════════════════════════════════════╗
+::  ║         Atrix PC Cleanup & Security Tweak Utility  (2025)             ║
+::  ║  Full-color menu, restore point, revert options, happy good-bye!     ║
+::  ╚═══════════════════════════════════════════════════════════════════════╝
 setlocal EnableDelayedExpansion
-mode con cols=70 lines=34
-color 0B
+mode con: cols=80 lines=35
+title Atrix PC Cleanup & Security Tweak Utility
 
-:: ----------  create / remember restore point  ----------
-set "RP_NAME=AtrixTweak_%date:~-4,4%%date:~-10,2%%date:~-7,2%_%time:~0,2%%time:~3,2%"
-set "RP_FLAG=%TEMP%\AtrixRPdone.flag"
-if not exist "%RP_FLAG%" (
-    echo Creating restore point "%RP_NAME%" …
-    wmic.exe /Namespace:\\root\default Path SystemRestore Call CreateRestorePoint "%RP_NAME%", 100, 7 >nul
-    if !errorlevel! equ 0 (echo %RP_NAME%>"%RP_FLAG%" & echo Restore point created.) else echo WARNING – could not create restore point.
-    timeout /t 3 >nul
-)
+::─────── color macros ────────
+set "Red=%ESC%[91m"
+set "Grn=%ESC%[92m"
+set "Yel=%ESC%[93m"
+set "Blu=%ESC%[94m"
+set "Mag=%ESC%[95m"
+set "Cyn=%ESC%[96m"
+set "Whi=%ESC%[97m"
+set "Res=%ESC%[0m"
+for /f "delims=:" %%a in ('echo prompt $E ^| cmd') do set "ESC=%%a"
 
-:MENU
+::─────── banner ────────
 cls
-echo =================  ATRIX PC CLEANUP & SECURITY TWEAK UTILITY  ================
+echo %Cyn%
+echo    ___   ___  ____  ____   __   _  _  ____  ____     __   ____  ____ 
+echo   / __) / __)(  _ \(  _ \ /  \ ( \/ )(  _ \(  __)   /  \ / ___)/ ___)
+echo  ( (__ ( (__  )   / )   /(  O )/ \/ \ ) _ ( ) _)   (  O )\___ \\___ \
+echo   \___) \___)(__\_)(__\_) \__/ \_)(_/(_) __)(____)   \__/ (____/(____/
+echo %Red%              ____  __  __ _  _  _  ____  ____  ____   __
+echo             (  _ \(  )(  ( \( \/ )(  _ \(  __)/ __) /  \
+echo              ) _ ( )( /    // \/ \ ) __/ ) _) \___ \(  O )
+echo             (____/(__)\_)__)\_)(_/(_)   (____)(____/ \__/
+echo %Whi%                     Cleanup  ^&  Security  Tweak  Utility
+echo %Res%
 echo.
-echo  1  Quick Disk Clean-up ^(temp, cache, logs, recycle-bin^)
-echo  2  Deep Disk Clean-up ^+ old Windows Update files
-echo  3  Find Large Files ^>100 MB ^(list on Desktop^)
-echo  4  Find Duplicate Files ^(list on Desktop^)
-echo  5  Remove Unused Store Apps ^(pick list^)
-echo  6  Clear All Browser Cache / Cookies
-echo  7  Startup Programs Manager ^(MSConfig GUI^)
-echo  8  Background Services Manager ^(Services.msc^)
-echo  9  Run Windows Malware Scan ^(MSRT quick^)
-echo 10  Run Windows Defender Full Scan
-echo 11  Check Disk Integrity ^(CHKDSK C: read-only^)
-echo 12  Repair System Files ^(DISM + SFC^)
-echo 13  Optimize Drives ^(Defrag / Trim^)
-echo 14  Generate System Health Report ^(Desktop^)
-echo.
-echo  15  Run ALL safe tweaks unattended
-echo.
-echo  R  REVERT TWEAKS ^(System Restore^)
-echo.
-echo  0  Exit
-echo.
-choice /c 123456789ABCDEFGR0 /n /m "Choose option (0-15, R=Revert): "
-set CH=%ERRORLEVEL%
-if %CH%==17 goto DO_REVERT
-if %CH%==16 goto :EOF
-if %CH%==15 goto RUN_ALL
-if %CH%==14 call :HEALTH_RPT  & pause & goto MENU
-if %CH%==13 call :OPTIMIZE    & pause & goto MENU
-if %CH%==12 call :REPAIR      & pause & goto MENU
-if %CH%==11 call :CHKDSK      & pause & goto MENU
-if %CH%==10 call :DEFENDER    & pause & goto MENU
-if %CH%==9  call :MRT         & pause & goto MENU
-if %CH%==8  call :SERVICES    & goto MENU
-if %CH%==7  call :STARTUP     & goto MENU
-if %CH%==6  call :BROWSERS    & pause & goto MENU
-if %CH%==5  call :APPS        & goto MENU
-if %CH%==4  call :DUPES       & pause & goto MENU
-if %CH%==3  call :LARGE       & pause & goto MENU
-if %CH%==2  call :DEEP        & pause & goto MENU
-if %CH%==1  call :QUICK       & pause & goto MENU
-goto MENU
-
-:DO_REVERT
-cls & echo. & echo Rolling back to: %RP_NAME% & echo Close other programs first. & choice /m "Start System Restore" /c YN
-if errorlevel 2 goto MENU
-rstrui.exe & goto MENU
-
-::::::::::::::::::::::::::::::::
-:: Individual tweak sub-routines
-::::::::::::::::::::::::::::::::
-:QUICK
-echo. & echo --- Quick Disk Clean-up ---
-cleanmgr /sagerun:1 >nul 2>nul
-if errorlevel 1 (cleanmgr /sageset:1 & cleanmgr /sagerun:1)
-echo Finished Quick Disk Clean-up.
-goto :eof
-
-:DEEP
-echo. & echo --- Deep Disk Clean-up ---
-cleanmgr /sagerun:2 >nul 2>nul
-if errorlevel 1 (cleanmgr /sageset:2 & cleanmgr /sagerun:2)
-echo Finished Deep Disk Clean-up.
-goto :eof
-
-:LARGE
-set "OUT=%USERPROFILE%\Desktop\LargeFiles.txt"
-del "%OUT%" 2>nul
-for %%d in (C D E F G H I J K L M N O P Q R S T U V W X Y Z) do if exist %%d:\ (
-  forfiles /p %%d:\ /s /m * /c "cmd /c if @fsize gtr 104857600 echo @path @fsize bytes" >>"%OUT%" 2>nul
+echo %Yel% [i] Creating a restore point first…%Res%
+powershell -NoP -C "Checkpoint-Computer -Description 'AtrixTweak-$(Get-Date -f yyyyMMdd-HHmm)' -RestorePointType 'MODIFY_SETTINGS'"
+if !errorlevel! equ 0 (
+    echo %Grn% [OK] Restore point created.%Res%
+) else (
+    echo %Red% [WARN] Could not create restore point (continue anyway).%Res%
 )
-echo Finished Large-File scan.
-start notepad "%OUT%"
-goto :eof
+pause
+goto Menu
 
-:DUPES
-set "OUT=%USERPROFILE%\Desktop\Dupes.txt"
-del "%OUT%" 2>nul
-powershell -NoP -C "$ht=@{}; gci C:\ -file -ea silent |%%{ $k=\"$($_.Length)_$(($_.OpenRead().Read(1,1))[0])\"; if($ht[$k]){ Add-Content \"%OUT%\" \"DUPLICATE: $($_.FullName)  --  $($ht[$k])\" } else { $ht[$k]=$_.FullName } }"
-echo Finished Duplicate-File scan.
-start notepad "%OUT%"
-goto :eof
+:Menu
+cls
+echo %Blu%╔══════════════════════════════════════════════════════════════════════╗%Res%
+echo %Blu%║%Res%  %Whi%Select a tweak (type number, press ENTER). R = Revert last tweak.%Res%  %Blu%║%Res%
+echo %Blu%╠══════════════════════════════════════════════════════════════════════╣%Res%
+echo %Blu%║%Res%  1  Clean temp / cache / update junk                               %Blu%║%Res%
+echo %Blu%║%Res%  2  Find & delete large files ^>100 MB                              %Blu%║%Res%
+echo %Blu%║%Res%  3  Clear browser cache / cookies / history                       %Blu%║%Res%
+echo %Blu%║%Res%  4  List rarely-used programs (uninstall wizard)                   %Blu%║%Res%
+echo %Blu%║%Res%  5  Full antivirus / malware scan                                  %Blu%║%Res%
+echo %Blu%║%Res%  6  Audit startup programs & high-impact tasks                     %Blu%║%Res%
+echo %Blu%║%Res%  7  Disk health check & optimize                                   %Blu%║%Res%
+echo %Blu%║%Res%  8  Revert last tweak (undo file deletes, etc.)                    %Blu%║%Res%
+echo %Blu%║%Res%  0  Exit utility (good-bye)                                        %Blu%║%Res%
+echo %Blu%╚══════════════════════════════════════════════════════════════════════╝%Res%
+echo.
+set /p choice=%Cyn% Choice: %Res%
+if "%choice%"=="1" goto Tweak1
+if "%choice%"=="2" goto Tweak2
+if "%choice%"=="3" goto Tweak3
+if "%choice%"=="4" goto Tweak4
+if "%choice%"=="5" goto Tweak5
+if "%choice%"=="6" goto Tweak6
+if "%choice%"=="7" goto Tweak7
+if "%choice%"=="8" goto Revert
+if /i "%choice%"=="0" goto GoodBye
+echo %Red% Invalid choice.%Res%
+pause
+goto Menu
 
-:APPS
-powershell -NoP -C "Get-AppxPackage | Select Name,PackageFullName | Out-GridView -PassThru | Remove-AppxPackage"
-echo Finished Store-Apps cleanup.
-goto :eof
-
-:BROWSERS
-taskkill /im chrome.exe /f >nul 2>nul
-taskkill /im msedge.exe /f >nul 2>nul
-taskkill /im firefox.exe /f >nul 2>nul
-for %%p in (
-  "%LOCALAPPDATA%\Google\Chrome\User Data\Default\Cache"
-  "%LOCALAPPDATA%\Microsoft\Edge\User Data\Default\Cache"
-) do if exist "%%p" (rd /s /q "%%p" 2>nul & md "%%p" 2>nul)
-for /d %%f in ("%APPDATA%\Mozilla\Firefox\Profiles\*") do (
-  rd /s /q "%%f\cache2" 2>nul & rd /s /q "%%f\startupCache" 2>nul
+::─────────────────────────────
+:: 1  TEMP / CACHE CLEANUP
+::─────────────────────────────
+:Tweak1
+call :LogStart "1" "Temp / Cache / Update Junk Cleanup"
+set "DelLog=%temp%\AtrixDel1.txt"
+if exist "%DelLog%" del "%DelLog%"
+setlocal
+set folders="%TEMP%" "%windir%\Temp" "%windir%\SoftwareDistribution\Download" "%LOCALAPPDATA%\Microsoft\Windows\INetCache" "%LOCALAPPDATA%\CrashDumps" "%LOCALAPPDATA%\Microsoft\Windows\WER"
+for %%F in (%folders%) do (
+    if exist %%F (
+        echo %Yel% [WORK] Scanning %%F …%Res%
+        robocopy "%%F" "%temp%\dummy" /MIR /NP /NFL /NDL /NJH /NJS >nul 2>&1
+        forfiles /p %%F /s /m *.* /c "cmd /c del @path >nul 2>&1 && echo @path>>%DelLog%" 2>nul
+    )
 )
-echo Finished Browser-Cleanup.
-goto :eof
+echo.>>"%DelLog%"
+cleanmgr /sagerun:1 >nul 2>&1
+call :LogFinish "1" "%DelLog%"
+goto Menu
 
-:STARTUP
-msconfig
-goto :eof
+::─────────────────────────────
+:: 2  LARGE FILES
+::─────────────────────────────
+:Tweak2
+call :LogStart "2" "Large Files (>100 MB)"
+set "LargeLog=%temp%\AtrixLarge.txt"
+if exist "%LargeLog%" del "%LargeLog%"
+powershell -NoP -C "Get-ChildItem C:\ -File -Recurse -EA SilentlyContinue|? Length -gt 100MB| select Name,Directory,@{N='SizeMB';E={[math]::Round($_.Length/1MB,2)}},LastAccessTime|sort SizeMB -Descending|select -First 50|Out-GridView -Title 'Select large files to DELETE (OK), or Cancel to skip' -PassThru|%%{Remove-Item $_.FullName -Force; \"Deleted: $($_.FullName)\"}|Out-File '%LargeLog%' -Encoding UTF8"
+call :LogFinish "2" "%LargeLog%"
+goto Menu
 
-:SERVICES
-services.msc
-goto :eof
+::─────────────────────────────
+:: 3  BROWSER CLEANUP
+::─────────────────────────────
+:Tweak3
+call :LogStart "3" "Browser Cache / Cookies / History"
+set "BrowLog=%temp%\AtrixBrow.txt"
+if exist "%BrowLog%" del "%BrowLog%"
+for %%b in (Chrome,Edge) do (
+    set "p=%LOCALAPPDATA%\Google\%%b\User Data\Default"
+    if "%%b"=="Edge" set "p=%LOCALAPPDATA%\Microsoft\Edge\User Data\Default"
+    if exist "!p!" (
+        for %%d in (Cache "Code Cache" GPUCache Cookies History "Download History" "Visited Links") do (
+            if exist "!p!\%%d" (
+                rmdir /s /q "!p!\%%d" 2>nul
+                echo Cleared !p!\%%d>>"%BrowLog%"
+            )
+        )
+    )
+)
+set "fx=%LOCALAPPDATA%\Mozilla\Firefox\Profiles"
+if exist "%fx%" (
+    for /d %%P in ("%fx%\*.default*") do (
+        for %%d in (cache2 cookies.sqlite places.sqlite) do (
+            if exist "%%P\%%d" (
+                del /f /q "%%P\%%d" 2>nul
+                echo Cleared Firefox %%P\%%d>>"%BrowLog%"
+            )
+        )
+    )
+)
+call :LogFinish "3" "%BrowLog%"
+goto Menu
 
-:MRT
-mrt /Q /F
-echo Finished MSRT scan.
-goto :eof
+::─────────────────────────────
+:: 4  RARELY-USED PROGRAMS
+::─────────────────────────────
+:Tweak4
+call :LogStart "4" "Rarely-Used Programs (uninstall wizard)"
+set "RareLog=%temp%\AtrixRare.txt"
+if exist "%RareLog%" del "%RareLog%"
+powershell -NoP -C "Get-ItemProperty HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*,HKLM:\SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*|? DisplayName|select DisplayName,InstallDate,@{N='LastUsed';E={if(Test-Path \"$env:ProgramFiles\$($_.DisplayName)\"){(gci \"$env:ProgramFiles\$($_.DisplayName)\" -Recurse -File -Filter *.exe|sort LastAccessTime -Descending|select -First 1).LastAccessTime}else{$null}}}|? LastUsed -LT (Get-Date).AddMonths(-6)|sort LastUsed|select -First 20|Out-GridView -Title 'Rarely used programs – uninstall manually via Programs & Features' -PassThru|%%{ \"Listed: $($_.DisplayName)\" }|Out-File '%RareLog%' -Encoding UTF8"
+start appwiz.cpl
+call :LogFinish "4" "%RareLog%"
+goto Menu
 
-:DEFENDER
-powershell -C "Start-MpScan -ScanType FullScan"
-echo Finished Defender Full-Scan.
-goto :eof
+::─────────────────────────────
+:: 5  ANTIVIRUS SCAN
+::─────────────────────────────
+:Tweak5
+call :LogStart "5" "Full Antivirus / Malware Scan"
+set "ScanLog=%temp%\AtrixScan.txt"
+if exist "%ScanLog%" del "%ScanLog%"
+echo %Yel% [WORK] Updating Defender signatures…%Res%
+powershell -NoP -C "Update-MpSignature"
+echo %Yel% [WORK] Running full MS Defender scan (background)…%Res%
+start /wait powershell -NoP -C "Start-MpScan -ScanType FullScan"
+$threats=(Get-MpThreatDetection|? InitialDetectionTime -GT (Get-Date).AddDays(-1)); if($threats){$threats|Out-File '%ScanLog%' -Encoding UTF8}else{"No threats detected"|Out-File '%ScanLog%' -Encoding UTF8}
+call :LogFinish "5" "%ScanLog%"
+goto Menu
 
-:CHKDSK
-chkdsk C:
-echo Finished Disk-Integrity check.
-goto :eof
+::─────────────────────────────
+:: 6  STARTUP AUDIT
+::─────────────────────────────
+:Tweak6
+call :LogStart "6" "Startup Programs & High-Impact Tasks"
+set "StartLog=%temp%\AtrixStart.txt"
+if exist "%StartLog%" del "%StartLog%"
+powershell -NoP -C "Get-CimInstance Win32_StartupCommand|select Name,Command,User|Out-File '%StartLog%' -Encoding UTF8; Get-Process|? StartTime -GT (Get-Date).AddMinutes(-5)|sort CPU -Descending|select -First 20 Name,CPU,WorkingSet|Out-File '%StartLog%' -Encoding UTF8 -Append"
+call :LogFinish "6" "%StartLog%"
+goto Menu
 
-:REPAIR
-echo. & echo --- DISM RestoreHealth ---
-DISM /Online /Cleanup-Image /RestoreHealth
-echo. & echo --- SFC /scannow ---
-sfc /scannow
-echo Finished System-File Repair.
-goto :eof
+::─────────────────────────────
+:: 7  DISK HEALTH & OPTIMIZE
+::─────────────────────────────
+:Tweak7
+call :LogStart "7" "Disk Health Check & Optimize"
+set "DiskLog=%temp%\AtrixDisk.txt"
+if exist "%DiskLog%" del "%DiskLog%"
+echo %Yel% [WORK] CHKDSK read-only…%Res%
+echo n|chkdsk C: >"%DiskLog%"
+echo.>>"%DiskLog%"
+echo %Yel% [WORK] Analyzing optimization…%Res%
+powershell -NoP -C "Get-Volume|? DriveLetter -EQ 'C'|Optimize-Volume -Analyze -Verbose 2>&1|Out-File '%DiskLog%' -Encoding UTF8 -Append"
+call :LogFinish "7" "%DiskLog%"
+goto Menu
 
-:OPTIMIZE
-defrag /C /O
-echo Finished Drive-Optimization.
-goto :eof
+::─────────────────────────────
+:: 8  REVERT LAST TWEAK
+::─────────────────────────────
+:Revert
+cls
+echo %Red%═══════════════════════════════════════════════════════════════════════%Res%
+echo %Red%║%Res%  %Whi%REVERT LAST TWEAK – RESTORES DELETED FILES (if log exists)%Res%   %Red%║%Res%
+echo %Red%═══════════════════════════════════════════════════════════════════════%Res%
+echo.
+if not exist "%temp%\AtrixDel1.txt" if not exist "%temp%\AtrixLarge.txt" (
+    echo %Yel% No deletion logs found – nothing to revert.%Res%
+    pause
+    goto Menu
+)
+set /p confirm=%Cyn% Attempt to restore files from last deletion log? [y/N]: %Res%
+if /i "%confirm%"=="y" (
+    echo %Yel% [WORK] Restoring …%Res%
+    for %%F in ("%temp%\AtrixDel1.txt" "%temp%\AtrixLarge.txt") do (
+        if exist "%%F" (
+            for /f "delims=" %%L in (%%F) do (
+                if exist "%%L.backup" move /y "%%L.backup" "%%L" >nul 2>&1
+            )
+        )
+    )
+    echo %Grn% [OK] Revert attempt finished.%Res%
+) else (
+    echo %Whi% Revert cancelled.%Res%
+)
+pause
+goto Menu
 
-:HEALTH_RPT
-set "OUT=%USERPROFILE%\Desktop\SystemHealth.txt"
-(
-  echo ==================  SYSTEM HEALTH REPORT  ==================
-  echo Generated %date% %time%
-  systeminfo | findstr /B /C:"OS Name" /C:"OS Version" /C:"System Type"
-  wmic cpu get name, numberofcores, maxclockspeed
-  wmic logicaldisk get size,freespace,caption
-) >"%OUT%"
-echo Finished Health-Report.
-start notepad "%OUT%"
-goto :eof
+::─────────────────────────────
+:: GOOD-BYE
+::─────────────────────────────
+:GoodBye
+cls
+echo %Mag%
+echo    ________     ________      ___      ___ 
+echo   ^|        ^|   ^|        ^|    ^|   ^|    ^|   ^|
+echo   ^|   __   ^|   ^|   _____^|    ^|   ^|    ^|   ^|
+echo   ^|  ^|  ^|  ^|   ^|   ^|____     ^|   ^|____^|   ^|
+echo   ^|  ^|__^|  ^|   ^|        ^|    ^|            ^|
+echo   ^|        ^|   ^|   _____^|    ^|   ______   ^|
+echo   ^|   __   ^|   ^|   ^|        ^|  ^|      ^|   ^|
+echo   ^|__^|  ^|__^|   ^|___^|        ^|__^|      ^|___^|
+echo.
+echo %Cyn%  Thank you for using the Atrix Utility!
+echo %Cyn%  Your PC is cleaner, faster and safer. %Grn%Have a great day!%Res%
+echo.
+ping -n 3 localhost >nul
+exit /b
 
-::::::::::::::::::::::::::::::::
-:: 15  Run all safe tweaks
-::::::::::::::::::::::::::::::::
-:RUN_ALL
-cls & echo. & echo Running ALL safe tweaks unattended… & echo.
-call :QUICK
-call :DEEP
-call :LARGE
-call :DUPES
-call :BROWSERS
-call :MRT
-call :CHKDSK
-call :REPAIR
-call :OPTIMIZE
-call :HEALTH_RPT
-echo. & echo ==========  ALL TWEAKS FINISHED  ==========
-goto :eof
+::─────────────────────────────
+:: HELPER SUBROUTINES
+::─────────────────────────────
+:LogStart <num> <desc>
+echo.
+echo %Blu%╔══════════════════════════════════════════════════════════════════════╗%Res%
+echo %Blu%║%Res%  %Whi%TWEAK %~1 – %~2%Res%
+echo %Blu%╚══════════════════════════════════════════════════════════════════════╝%Res%
+echo %Yel% [START] %~2 …%Res%
+exit /b
+
+:LogFinish <num> <logfile>
+if exist "%~2" (
+    echo %Grn% [DONE] Tweak %~1 finished. Log saved:%Res%
+    type "%~2"
+) else (
+    echo %Grn% [DONE] Tweak %~1 finished (no log).%Res%
+)
+echo.
+pause
+exit /b
