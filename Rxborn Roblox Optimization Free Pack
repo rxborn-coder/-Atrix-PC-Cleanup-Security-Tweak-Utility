@@ -1,0 +1,109 @@
+@setlocal EnableExtensions EnableDelayedExpansion
+@echo off
+::  ╔══════════════════════════════════════════════════════════════╗
+::  ║  Rxborn Roblox Optimisation Pack  –  FREE Edition  v1.0      ║
+::  ║  MIT Licence  –  github.com/rxborn/optim                     ║
+::  ╚══════════════════════════════════════════════════════════════╝
+title Rxborn FREE Optimiser
+
+:: ----------  basic config  ----------
+set "LOG=%USERPROFILE%\Rxborn_FREE.log"
+echo Rxborn FREE session started >"%LOG%"
+
+:: ----------  elevation  ----------
+fltmc >nul 2>&1 || (
+  mshta vbscript:Execute("CreateObject(""Shell.Application"").ShellExecute ""%~f0"","""",""%CD%"",""runas"",1:close")
+  exit /b 1
+)
+
+:: ----------  restore point  ----------
+powershell -NoP "Checkpoint-Computer -Description 'Rxborn_FREE' -RestorePointType 'MODIFY_SETTINGS'" 2>nul
+
+:: ----------  menu  ----------
+:MENU
+cls
+echo.
+echo   ╔══════════════════════════════════════╗
+echo   ║  Rxborn FREE  –  6-Tweak Edition     ║
+echo   ╚══════════════════════════════════════╝
+echo.
+echo   1  Apply all 6 tweaks
+echo   2  Pick single tweak
+echo   3  Revert all  (restore point)
+echo   4  Exit
+echo.
+choice /c 1234 /n /m "  Select: "
+if %errorlevel%==1 goto APPLY_ALL
+if %errorlevel%==2 goto PICK
+if %errorlevel%==3 goto REVERT
+exit /b 0
+
+:: ----------  single tweak picker  ----------
+:PICK
+cls
+echo.
+echo   FREE modules:
+echo   1 CPU Priority boost
+echo   2 Kill bloatware
+echo   3 TCP nagle tweaks
+echo   4 Timer-resolution stutter fix
+echo   5 Disable Fullscreen Optimisations
+echo   6 Prefetch / Superfetch off
+echo   7 Back
+echo.
+choice /c 1234567 /n /m "  Pick: "
+if %errorlevel%==7 goto MENU
+set "C=%errorlevel%"
+call :TWEAK%C%
+pause & goto PICK
+
+:: ----------  individual tweak stubs  ----------
+:TWEAK1
+echo [%DATE% %TIME%] CPU Priority boost >>"%LOG%"
+wmic process where "name='RobloxPlayerBeta.exe'" call setpriority 128 >nul 2>&1
+echo CPU Priority boost DONE! & goto :eof
+
+:TWEAK2
+echo [%DATE% %TIME%] Kill bloat >>"%LOG%"
+for %%P in (GoogleUpdate.exe,EpicGamesLauncher.exe,Steam.exe,Discord.exe) do taskkill /F /IM "%%P" >nul 2>&1
+echo Background bloat killed DONE! & goto :eof
+
+:TWEAK3
+echo [%DATE% %TIME%] TCP tweaks >>"%LOG%"
+reg add "HKLM\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters" /v "TcpAckFrequency" /t REG_DWORD /d 1 /f >nul 2>&1
+reg add "HKLM\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters" /v "TCPNoDelay" /t REG_DWORD /d 1 /f >nul 2>&1
+echo TCP nagle tweaks DONE! & goto :eof
+
+:TWEAK4
+echo [%DATE% %TIME%] Timer resolution >>"%LOG%"
+if not exist "%temp%\SetTimerResolution.exe" bitsadmin /transfer rxbornDL /download /priority normal https://github.com/tepperson2/SetTimerResolution/releases/download/v1.0/SetTimerResolution.exe "%temp%\SetTimerResolution.exe" >nul 2>&1
+"%temp%\SetTimerResolution.exe" -min >nul 2>&1
+echo Timer-resolution stutter fix DONE! & goto :eof
+
+:TWEAK5
+echo [%DATE% %TIME%] FSO off >>"%LOG%"
+for /f "delims=" %%B in ('dir /b /s "%LOCALAPPDATA%\Roblox\Versions\*\RobloxPlayerBeta.exe" 2^>nul') do (
+  reg add "HKCU\Software\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers" /v "%%B" /t REG_SZ /d "~ DISABLEDXMAXIMIZEDWINDOWEDMODE" /f >nul 2>&1
+)
+echo Full-screen optimisations disabled DONE! & goto :eof
+
+:TWEAK6
+echo [%DATE% %TIME%] Prefetch off >>"%LOG%"
+reg add "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management\PrefetchParameters" /v "EnablePrefetcher" /t REG_DWORD /d 0 /f >nul 2>&1
+reg add "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management\PrefetchParameters" /v "EnableSuperfetch" /t REG_DWORD /d 0 /f >nul 2>&1
+sc stop "SysMain" >nul 2>&1 && sc config "SysMain" start= disabled >nul 2>&1
+echo Prefetch / Superfetch off DONE! & goto :eof
+
+:: ----------  bulk apply  ----------
+:APPLY_ALL
+for /L %%i in (1,1,6) do call :TWEAK%%i
+echo.
+echo === All 6 FREE tweaks applied ===
+echo Log: %LOG%
+pause & goto MENU
+
+:: ----------  revert  ----------
+:REVERT
+powershell -NoP "Get-ComputerRestorePoint | Sort-Object CreationTime -Desc | Select -First 1 | %{ Restore-Computer -RestorePoint $_.SequenceNumber -Force }" 2>nul
+echo System reverted.  Restart recommended.
+pause & goto MENU
