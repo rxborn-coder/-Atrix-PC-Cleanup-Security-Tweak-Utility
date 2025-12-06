@@ -1,0 +1,183 @@
+@echo off
+:: Atrix PC Cleanup & Security Tweak Utility
+::  – full built-in tweak collection
+::  – restore-point + revert option
+::  RUN AS ADMINISTRATOR
+title Atrix PC Cleanup & Security Tweak Utility
+setlocal EnableDelayedExpansion
+mode con cols=70 lines=34
+set "RP_NAME=AtrixTweak_%date:~-4,4%%date:~-10,2%%date:~-7,2%_%time:~0,2%%time:~3,2%"
+set "RP_FLAG=%TEMP%\AtrixRPdone.flag"
+if not exist "%RP_FLAG%" (
+    echo Creating restore point "%RP_NAME%" …
+    wmic.exe /Namespace:\\root\default Path SystemRestore Call CreateRestorePoint "%RP_NAME%", 100, 7 >nul
+    if !errorlevel! equ 0 (echo %RP_NAME%>"%RP_FLAG%" & echo Restore point created.) else echo WARNING – could not create restore point.
+    timeout /t 3 >nul
+)
+
+:MENU
+cls
+echo =================  ATRIX PC CLEANUP & SECURITY TWEAK UTILITY  ================
+echo.
+echo  1  Quick Disk Clean-up ^(temp, cache, logs, recycle-bin^)
+echo  2  Deep Disk Clean-up ^+ old Windows Update files
+echo  3  Find Large Files ^>100 MB ^(list on Desktop^)
+echo  4  Find Duplicate Files ^(list on Desktop^)
+echo  5  Remove Unused Store Apps ^(pick list^)
+echo  6  Clear All Browser Cache / Cookies
+echo  7  Startup Programs Manager ^(MSConfig GUI^)
+echo  8  Background Services Manager ^(Services.msc^)
+echo  9  Run Windows Malware Scan ^(MSRT quick^)
+echo 10  Run Windows Defender Full Scan
+echo 11  Check Disk Integrity ^(CHKDSK C: read-only^)
+echo 12  Repair System Files ^(DISM + SFC^)
+echo 13  Optimize Drives ^(Defrag / Trim^)
+echo 14  Generate System Health Report ^(Desktop^)
+echo.
+echo  15  Run ALL tweaks unattended
+echo.
+echo  R  REVERT TWEAKS ^(System Restore^)
+echo.
+echo  0  Exit
+echo.
+choice /c 123456789ABCDEFGR0 /n /m "Choose option (0-15, R=Revert): "
+set CH=%ERRORLEVEL%
+if %CH%==17 goto DO_REVERT
+if %CH%==16 goto :EOF
+if %CH%==15 goto RUN_ALL
+if %CH%==14 goto HEALTH_RPT
+if %CH%==13 goto OPTIMIZE
+if %CH%==12 goto REPAIR
+if %CH%==11 goto CHKDSK
+if %CH%==10 goto DEFENDER
+if %CH%==9  goto MRT
+if %CH%==8  goto SERVICES
+if %CH%==7  goto STARTUP
+if %CH%==6  goto BROWSERS
+if %CH%==5  goto APPS
+if %CH%==4  goto DUPES
+if %CH%==3  goto LARGE
+if %CH%==2  goto DEEP
+if %CH%==1  goto QUICK
+goto MENU
+
+:DO_REVERT
+cls & echo. & echo Rolling back to: %RP_NAME% & echo Close other programs first. & choice /m "Start System Restore" /c YN
+if errorlevel 2 goto MENU
+rstrui.exe & goto MENU
+
+:::::::::::::::::::::::::::::::
+:: Individual tweak functions
+:::::::::::::::::::::::::::::::
+:QUICK
+echo. & echo --- Quick Disk Clean-up ---
+cleanmgr /sagerun:1 >nul 2>nul
+if errorlevel 1 (cleanmgr /sageset:1 & cleanmgr /sagerun:1)
+echo Finished Quick Disk Clean-up.
+pause & goto MENU
+
+:DEEP
+echo. & echo --- Deep Disk Clean-up ---
+cleanmgr /sagerun:2 >nul 2>nul
+if errorlevel 1 (cleanmgr /sageset:2 & cleanmgr /sagerun:2)
+echo Finished Deep Disk Clean-up.
+pause & goto MENU
+
+:LARGE
+set "OUT=%USERPROFILE%\Desktop\LargeFiles.txt"
+del "%OUT%" 2>nul
+for %%d in (C D E F G H I J K L M N O P Q R S T U V W X Y Z) do if exist %%d:\ (
+  forfiles /p %%d:\ /s /m * /c "cmd /c if @fsize gtr 104857600 echo @path @fsize bytes" >>"%OUT%" 2>nul
+)
+echo Finished Large-File scan.
+start notepad "%OUT%" & goto MENU
+
+:DUPES
+set "OUT=%USERPROFILE%\Desktop\Dupes.txt"
+del "%OUT%" 2>nul
+powershell -NoP -C "$ht=@{}; gci C:\ -file -ea silent |%%{ $k=\"$($_.Length)_$(($_.OpenRead().Read(1,1))[0])\"; if($ht[$k]){ Add-Content \"%OUT%\" \"DUPLICATE: $($_.FullName)  --  $($ht[$k])\" } else { $ht[$k]=$_.FullName } }"
+echo Finished Duplicate-File scan.
+start notepad "%OUT%" & goto MENU
+
+:APPS
+powershell -NoP -C "Get-AppxPackage | Select Name,PackageFullName | Out-GridView -PassThru | Remove-AppxPackage"
+echo Finished Store-Apps cleanup.
+goto MENU
+
+:BROWSERS
+taskkill /im chrome.exe /f >nul 2>nul
+taskkill /im msedge.exe /f >nul 2>nul
+taskkill /im firefox.exe /f >nul 2>nul
+for %%p in (
+  "%LOCALAPPDATA%\Google\Chrome\User Data\Default\Cache"
+  "%LOCALAPPDATA%\Microsoft\Edge\User Data\Default\Cache"
+) do if exist "%%p" (rd /s /q "%%p" 2>nul & md "%%p" 2>nul)
+for /d %%f in ("%APPDATA%\Mozilla\Firefox\Profiles\*") do (
+  rd /s /q "%%f\cache2" 2>nul & rd /s /q "%%f\startupCache" 2>nul
+)
+echo Finished Browser-Cleanup.
+pause & goto MENU
+
+:STARTUP
+msconfig & goto MENU
+
+:SERVICES
+services.msc & goto MENU
+
+:MRT
+mrt /Q /F
+echo Finished MSRT scan.
+pause & goto MENU
+
+:DEFENDER
+powershell -C "Start-MpScan -ScanType FullScan"
+echo Finished Defender Full-Scan.
+pause & goto MENU
+
+:CHKDSK
+chkdsk C:
+echo Finished Disk-Integrity check.
+pause & goto MENU
+
+:REPAIR
+echo. & echo --- DISM RestoreHealth ---
+DISM /Online /Cleanup-Image /RestoreHealth
+echo. & echo --- SFC /scannow ---
+sfc /scannow
+echo Finished System-File Repair.
+pause & goto MENU
+
+:OPTIMIZE
+defrag /C /O
+echo Finished Drive-Optimization.
+pause & goto MENU
+
+:HEALTH_RPT
+set "OUT=%USERPROFILE%\Desktop\SystemHealth.txt"
+(
+  echo ==================  SYSTEM HEALTH REPORT  ==================
+  echo Generated %date% %time%
+  systeminfo | findstr /B /C:"OS Name" /C:"OS Version" /C:"System Type"
+  wmic cpu get name, numberofcores, maxclockspeed
+  wmic logicaldisk get size,freespace,caption
+) >"%OUT%"
+echo Finished Health-Report.
+start notepad "%OUT%" & goto MENU
+
+:::::::::::::::::::::::::::::::
+:: 15  Run everything safe
+:::::::::::::::::::::::::::::::
+:RUN_ALL
+cls & echo. & echo Running ALL safe tweaks unattended… & echo.
+call :QUICK
+call :DEEP
+call :LARGE
+call :DUPES
+call :BROWSERS
+call :MRT
+call :CHKDSK
+call :REPAIR
+call :OPTIMIZE
+call :HEALTH_RPT
+echo. & echo ==========  ALL TWEAKS FINISHED  ==========
+pause & goto MENU
